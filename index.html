@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full w-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AITR Smart Campus Navigator | Next-Gen Indoor & Outdoor Navigation</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"/>
+  <!-- Leaflet CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <style>
+    * {
+      font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    }
+
+    body, html {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background-color: #0f172a;
+    }
+
+    /* Edge-to-Edge Map Canvas */
+    #map {
+      width: 100vw;
+      height: 100vh;
+      background-color: #0d1b2a !important; /* Deep Modern Canvas Slate */
+      z-index: 1;
+    }
+
+    /* Ultra-Modern Glassmorphism HUD Panels */
+    .glass-panel {
+      background: rgba(15, 23, 42, 0.78);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+    }
+
+    .glass-panel-light {
+      background: rgba(255, 255, 255, 0.88);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.6);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+    }
+
+    /* Custom Animated Map Labels */
+    .map-building-label {
+      background: rgba(15, 23, 42, 0.9);
+      color: #f8fafc;
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      padding: 3px 8px;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 700;
+      white-space: nowrap;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      pointer-events: auto;
+      text-align: center;
+      transition: transform 0.2s ease;
+    }
+    .map-building-label:hover {
+      transform: scale(1.08);
+    }
+
+    /* Dynamic Directional User Arrow Marker */
+    .user-arrow-wrapper {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .user-arrow-icon {
+      width: 38px;
+      height: 38px;
+      background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+      color: #ffffff;
+      border: 3px solid #ffffff;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 20px rgba(59, 130, 246, 0.8);
+      font-size: 16px;
+    }
+
+    .user-arrow-pulse {
+      position: absolute;
+      width: 54px;
+      height: 54px;
+      border-radius: 50%;
+      background: rgba(59, 130, 246, 0.3);
+      animation: pulse-ring 1.8s infinite ease-out;
+      pointer-events: none;
+    }
+
+    @keyframes pulse-ring {
+      0% { transform: scale(0.6); opacity: 1; }
+      100% { transform: scale(1.5); opacity: 0; }
+    }
+
+    /* Bouncing Destination Target Marker */
+    .dest-pin-icon {
+      font-size: 32px;
+      color: #ef4444;
+      filter: drop-shadow(0 6px 12px rgba(239, 68, 68, 0.5));
+      animation: pin-bounce 1s infinite alternate ease-in-out;
+    }
+
+    @keyframes pin-bounce {
+      0% { transform: translateY(0); }
+      100% { transform: translateY(-10px); }
+    }
+
+    /* Floor Switcher Floating Buttons */
+    .floor-pill {
+      padding: 8px 16px;
+      background-color: rgba(255, 255, 255, 0.08);
+      color: #94a3b8;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 700;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      border: 1px solid transparent;
+    }
+    .floor-pill:hover {
+      background-color: rgba(255, 255, 255, 0.18);
+      color: #ffffff;
+    }
+    .floor-pill.active-floor {
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      color: #ffffff;
+      border-color: rgba(255, 255, 255, 0.3);
+      box-shadow: 0 4px 15px rgba(37, 99, 235, 0.4);
+    }
+
+    /* Animated Polyline Path */
+    .leaflet-interactive[stroke-dasharray] {
+      animation: dash 1.5s linear infinite;
+    }
+    @keyframes dash {
+      to {
+        stroke-dashoffset: -24;
+      }
+    }
+
+    /* Custom Leaflet Popups */
+    .leaflet-popup-content-wrapper {
+      background: rgba(15, 23, 42, 0.92) !important;
+      color: #ffffff !important;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 16px !important;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4) !important;
+      padding: 4px;
+    }
+    .leaflet-popup-tip {
+      background: rgba(15, 23, 42, 0.92) !important;
+    }
+
+    /* Custom Scrollbars */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
+  </style>
+</head>
+<body class="h-full w-full relative">
+
+  <!-- 1. FULL SCREEN CANVAS MAP -->
+  <div id="map"></div>
+
+  <!-- 2. TOP FLOATING BRAND & SEARCH HUD BAR -->
+  <div class="absolute top-4 left-4 right-4 z-[1000] flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 pointer-events-none">
+    
+    <!-- Branding Badge -->
+    <div class="glass-panel text-white px-5 py-3 rounded-2xl flex items-center justify-between md:justify-start gap-4 pointer-events-auto border border-white/10">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center font-black text-xl shadow-lg shadow-blue-500/30 text-white">
+          A
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="font-extrabold text-base md:text-lg tracking-tight text-white leading-none">AcroRoute
+            
+            </h1>
+            <span class="bg-blue-500/20 text-blue-400 border border-blue-500/30 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">AITR Focus</span>
+          </div>
+          <p class="text-[11px] text-slate-400 font-medium pt-0.5">Acropolis Institute of Technology & Research</p>
+        </div>
+      </div>
+
+      <!-- Quick Mute Button -->
+      <button id="voiceToggleBtn" onclick="toggleVoiceMute()" class="md:hidden w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center text-xs text-blue-400 transition">
+        <i id="voiceIconMobile" class="fa-solid fa-volume-high"></i>
+      </button>
+    </div>
+
+    <!-- Central Search & Controls floating bar -->
+    <div class="glass-panel p-2 rounded-2xl flex flex-wrap md:flex-nowrap items-center gap-2 pointer-events-auto flex-1 max-w-3xl border border-white/10">
+      
+      <!-- Start Location Selector -->
+      <div class="flex-1 min-w-[140px] relative">
+        <select id="startSelect" class="w-full pl-8 pr-3 py-2 bg-slate-800/80 hover:bg-slate-800 text-white border border-slate-700 rounded-xl text-xs font-semibold focus:outline-none focus:border-blue-500 transition cursor-pointer appearance-none">
+          <option value="gate">Start: Main Gate Entrance</option>
+          <option value="block1">Start: Block 1 Entrance</option>
+          <option value="block2">Start: Block 2 Entrance</option>
+          <option value="block3">Start: Block 3 Entrance</option>
+        </select>
+        <i class="fa-solid fa-circle-dot text-emerald-400 text-xs absolute left-2.5 top-1/2 -translate-y-1/2"></i>
+      </div>
+
+      <!-- Arrow Separator -->
+      <i class="fa-solid fa-arrow-right text-slate-500 text-xs hidden md:block"></i>
+
+      <!-- Destination Search Selector -->
+      <div class="flex-[1.5] min-w-[200px] relative">
+        <select id="destSelect" class="w-full pl-8 pr-3 py-2 bg-slate-800/80 hover:bg-slate-800 text-white border border-slate-700 rounded-xl text-xs font-semibold focus:outline-none focus:border-blue-500 transition cursor-pointer appearance-none">
+          <option value="">Select Destination...</option>
+
+          <optgroup label="Key Landmarks">
+            <option value="canteen">Central Canteen</option>
+            <option value="sports">Sports Complex (In front of Canteen)</option>
+            <option value="stationery">Stationery Shop (In front of Block 3)</option>
+            <option value="medical">Acro Care (Block 1 - Floor 3)</option>
+            <option value="printing">Printing Shop</option>
+          </optgroup>
+
+          <optgroup label="Auditoriums & Special Units">
+            <option value="dhairya">Dhairya Prabha Audi (MBA Building)</option>
+            <option value="kamal">Kamal Prabha Audi (AIMSR Zone)</option>
+            <option value="idealab">AICTE IDEA Lab (Block 2 - Floor 1)</option>
+            <option value="server">Server Room (Block 2 - Floor 1)</option>
+            <option value="cdc">CDC Cell (Block 3 - Ground Floor)</option>
+          </optgroup>
+
+          <optgroup label="Administrative Offices">
+            <option value="reception">Reception & Info Desk</option>
+            <option value="fees">Fees Counter</option>
+            <option value="director">Director Office</option>
+            <option value="admission">Admission Cell</option>
+          </optgroup>
+
+          <optgroup id="classOptGroup" label="Classrooms"></optgroup>
+          <optgroup id="facultyOptGroup" label="Faculty Cabins"></optgroup>
+          <optgroup id="labsOptGroup" label="Labs"></optgroup>
+          <optgroup id="hodOptGroup" label="HOD Offices"></optgroup>
+        </select>
+        <i class="fa-solid fa-location-dot text-rose-500 text-xs absolute left-2.5 top-1/2 -translate-y-1/2"></i>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="flex items-center gap-2 w-full md:w-auto">
+        <button onclick="findPath()" class="flex-1 md:flex-none px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-blue-600/30 transition flex items-center justify-center gap-1.5 whitespace-nowrap">
+          <i class="fa-solid fa-diamond-turn-right"></i> Find Path
+        </button>
+
+        <button onclick="openCategoryModal()" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5 whitespace-nowrap">
+          <i class="fa-solid fa-plus text-blue-400"></i> + Add
+        </button>
+
+        <button id="voiceToggleBtnDesktop" onclick="toggleVoiceMute()" class="hidden md:flex px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs rounded-xl transition items-center gap-1.5">
+          <i id="voiceIconDesktop" class="fa-solid fa-volume-high text-blue-400"></i>
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- 3. BOTTOM FLOATING FLOOR SWITCHER & METRICS BAR -->
+  <div class="absolute bottom-6 left-4 right-4 z-[1000] flex flex-col sm:flex-row items-center justify-between gap-3 pointer-events-none">
+    
+    <!-- Floor Switcher Pills -->
+    <div class="glass-panel p-1.5 rounded-2xl flex items-center gap-1 pointer-events-auto border border-white/10 shadow-2xl">
+      <span class="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider px-3 hidden sm:inline">Floors</span>
+      <button onclick="switchFloor('G')" class="floor-pill active-floor">G Floor</button>
+      <button onclick="switchFloor('1')" class="floor-pill">1st Floor</button>
+      <button onclick="switchFloor('2')" class="floor-pill">2nd Floor</button>
+      <button onclick="switchFloor('3')" class="floor-pill">3rd Floor</button>
+    </div>
+
+    <!-- PDR & Metrics Controls -->
+    <div class="glass-panel px-4 py-2 rounded-2xl flex items-center gap-4 text-xs font-semibold text-slate-300 pointer-events-auto border border-white/10 shadow-2xl">
+      <div class="flex items-center gap-2">
+        <span class="text-slate-400 text-[11px] uppercase tracking-wider">Angle:</span>
+        <strong id="headingDeg" class="text-blue-400 font-extrabold">0°</strong>
+      </div>
+      <div class="h-4 w-[1px] bg-slate-700"></div>
+      <div class="flex items-center gap-2">
+        <span class="text-slate-400 text-[11px] uppercase tracking-wider">Steps:</span>
+        <strong id="stepCount" class="text-blue-400 font-extrabold">0</strong>
+      </div>
+      <div class="h-4 w-[1px] bg-slate-700"></div>
+      <div class="flex items-center gap-2">
+        <span class="text-slate-400 text-[11px] uppercase tracking-wider">Dist:</span>
+        <strong id="distCount" class="text-emerald-400 font-extrabold">0.0 m</strong>
+      </div>
+      
+      <div class="h-4 w-[1px] bg-slate-700"></div>
+      <button id="pdrBtn" onclick="togglePDR()" class="px-2.5 py-1 bg-emerald-600/80 hover:bg-emerald-600 text-white rounded-lg text-xs font-bold transition flex items-center gap-1">
+        <i class="fa-solid fa-person-walking"></i> PDR
+      </button>
+
+      <button onclick="resetMap()" class="text-slate-400 hover:text-white transition font-bold"><i class="fa-solid fa-rotate-left"></i></button>
+    </div>
+  </div>
+
+  <!-- 4. TURN-BY-TURN VOICE GUIDANCE FLOATING CARD -->
+  <div id="voiceBox" class="hidden absolute top-24 left-4 right-4 md:right-auto md:w-96 glass-panel p-4 rounded-2xl z-[1000] border border-white/15 text-white space-y-3 pointer-events-auto animate-fade-in shadow-2xl">
+    <div class="flex items-center justify-between border-b border-white/10 pb-2">
+      <div class="flex items-center gap-2 text-xs text-blue-400 font-extrabold uppercase tracking-wider">
+        <i class="fa-solid fa-route"></i> Live Voice Navigation
+      </div>
+      <button onclick="closeVoiceBox()" class="text-slate-400 hover:text-white text-xs"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="flex items-start gap-3">
+      <div id="navTurnIcon" class="w-11 h-11 bg-gradient-to-tr from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center text-xl text-white font-black shadow-lg shadow-blue-500/30 shrink-0">
+        <i class="fa-solid fa-arrow-up"></i>
+      </div>
+      <div class="space-y-0.5">
+        <div id="navVoiceText" class="text-sm font-bold leading-tight text-white">Proceed along the central corridor...</div>
+        <div id="navSubText" class="text-xs text-slate-400 font-medium">Route direction active</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. CATEGORY SELECTION MODAL -->
+  <div id="categoryModal" class="hidden fixed inset-0 bg-slate-950/70 backdrop-blur-md z-[2000] flex items-center justify-center p-4">
+    <div class="glass-panel max-w-md w-full p-6 rounded-3xl border border-white/15 text-white space-y-5 shadow-2xl">
+      <div class="flex items-center justify-between border-b border-white/10 pb-3">
+        <h3 class="font-extrabold text-lg flex items-center gap-2">
+          <i class="fa-solid fa-plus-circle text-blue-400"></i> Add New Campus Location
+        </h3>
+        <button onclick="closeCategoryModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <p class="text-xs text-slate-400 font-medium">Select the category of the location you wish to register:</p>
+
+      <div class="grid grid-cols-2 gap-3">
+        <button onclick="selectCategory('class')" class="p-4 bg-slate-800/60 hover:bg-blue-600/20 border border-slate-700 hover:border-blue-500/50 rounded-2xl text-left transition flex flex-col items-center justify-center gap-2 group">
+          <div class="w-12 h-12 bg-blue-500/20 text-blue-400 rounded-2xl flex items-center justify-center text-xl group-hover:scale-110 transition border border-blue-500/30">
+            <i class="fa-solid fa-chalkboard-user"></i>
+          </div>
+          <span class="text-xs font-bold text-slate-200 group-hover:text-white">Add Class</span>
+        </button>
+
+        <button onclick="selectCategory('faculty')" class="p-4 bg-slate-800/60 hover:bg-purple-600/20 border border-slate-700 hover:border-purple-500/50 rounded-2xl text-left transition flex flex-col items-center justify-center gap-2 group">
+          <div class="w-12 h-12 bg-purple-500/20 text-purple-400 rounded-2xl flex items-center justify-center text-xl group-hover:scale-110 transition border border-purple-500/30">
+            <i class="fa-solid fa-user-tie"></i>
+          </div>
+          <span class="text-xs font-bold text-slate-200 group-hover:text-white">Faculty Cabin</span>
+        </button>
+
+        <button onclick="selectCategory('lab')" class="p-4 bg-slate-800/60 hover:bg-emerald-600/20 border border-slate-700 hover:border-emerald-500/50 rounded-2xl text-left transition flex flex-col items-center justify-center gap-2 group">
+          <div class="w-12 h-12 bg-emerald-500/20 text-emerald-400 rounded-2xl flex items-center justify-center text-xl group-hover:scale-110 transition border border-emerald-500/30">
+            <i class="fa-solid fa-flask"></i>
+          </div>
+          <span class="text-xs font-bold text-slate-200 group-hover:text-white">Add Labs</span>
+        </button>
+
+        <button onclick="selectCategory('hod')" class="p-4 bg-slate-800/60 hover:bg-amber-600/20 border border-slate-700 hover:border-amber-500/50 rounded-2xl text-left transition flex flex-col items-center justify-center gap-2 group">
+          <div class="w-12 h-12 bg-amber-500/20 text-amber-400 rounded-2xl flex items-center justify-center text-xl group-hover:scale-110 transition border border-amber-500/30">
+            <i class="fa-solid fa-building-user"></i>
+          </div>
+          <span class="text-xs font-bold text-slate-200 group-hover:text-white">HOD Office</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. LOCATION ENTRY MODAL -->
+  <div id="locationModal" class="hidden fixed inset-0 bg-slate-950/70 backdrop-blur-md z-[2000] flex items-center justify-center p-4">
+    <div class="glass-panel max-w-md w-full p-6 rounded-3xl border border-white/15 text-white space-y-4 shadow-2xl">
+      <div class="flex items-center justify-between border-b border-white/10 pb-3">
+        <h3 id="locationModalTitle" class="font-extrabold text-lg flex items-center gap-2">
+          <i id="locationModalIcon" class="fa-solid fa-plus-circle text-blue-400"></i> Add Location Details
+        </h3>
+        <button onclick="closeLocationModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <form id="locationForm" onsubmit="saveCustomLocation(event)" class="space-y-3">
+        <input type="hidden" id="locCategory" value="class">
+
+        <div>
+          <label id="locNameLabel" class="block text-xs font-bold text-slate-300 mb-1">Name / Number</label>
+          <input type="text" id="locName" required placeholder="e.g. Room 302 / Dr. Sharma / EC Lab" class="w-full px-3 py-2.5 bg-slate-800/80 border border-slate-700 rounded-xl text-xs font-medium text-white focus:outline-none focus:border-blue-500">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-bold text-slate-300 mb-1">Department</label>
+            <select id="locDept" required class="w-full px-3 py-2.5 bg-slate-800/80 border border-slate-700 rounded-xl text-xs font-medium text-white focus:outline-none focus:border-blue-500">
+              <option value="CS">CS Dept</option>
+              <option value="IT">IT Dept</option>
+              <option value="EC">EC Dept</option>
+              <option value="AIML">AIML Dept</option>
+              <option value="Civil">Civil Dept</option>
+              <option value="CSIT">CSIT Dept</option>
+              <option value="General">General / First Year</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-300 mb-1">Block</label>
+            <select id="locBlock" required class="w-full px-3 py-2.5 bg-slate-800/80 border border-slate-700 rounded-xl text-xs font-medium text-white focus:outline-none focus:border-blue-500">
+              <option value="block1">Block 1</option>
+              <option value="block2">Block 2</option>
+              <option value="block3">Block 3</option>
+              <option value="admin">Admin Wing</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-300 mb-1">Floor</label>
+          <select id="locFloor" required class="w-full px-3 py-2.5 bg-slate-800/80 border border-slate-700 rounded-xl text-xs font-medium text-white focus:outline-none focus:border-blue-500">
+            <option value="G">Ground Floor</option>
+            <option value="1">1st Floor</option>
+            <option value="2">2nd Floor</option>
+            <option value="3">3rd Floor</option>
+          </select>
+        </div>
+
+        <div class="bg-blue-950/40 border border-blue-500/30 p-3 rounded-2xl text-[11px] text-blue-200 space-y-2">
+          <p class="font-bold flex items-center gap-1.5 text-blue-400"><i class="fa-solid fa-location-dot"></i> Map Coordinates Pin:</p>
+          <div class="flex gap-2 items-center">
+            <input type="text" id="locCoords" readonly placeholder="Pick location on map" class="flex-1 px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs font-mono text-slate-300">
+            <button type="button" onclick="enablePickMode()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg text-xs transition">Pick Pin</button>
+          </div>
+        </div>
+
+        <div class="flex gap-2 pt-2">
+          <button type="button" onclick="closeLocationModal()" class="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold rounded-xl text-xs transition">Cancel</button>
+          <button type="submit" class="flex-1 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-xs shadow-lg shadow-blue-600/30 transition">Save Location</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    // Map Canvas Setup
+    const bounds = [[0, 0], [1000, 1000]];
+    const map = L.map('map', {
+      crs: L.CRS.Simple,
+      minZoom: -1,
+      maxZoom: 2,
+      zoomControl: false
+    });
+    map.fitBounds(bounds);
+
+    let activeFloor = 'G';
+    let activeFloorLayers = [];
+    let routeLine = null;
+    let destMarker = null;
+    let isVoiceMuted = false;
+    let pickingLocationMode = false;
+
+    // Campus Coordinates Database
+    const locations = {
+      gate: [100, 500],
+      canteen: [450, 300],
+      sports: [450, 180],
+      stationery: [600, 850],
+      medical: [720, 480],
+      printing: [350, 360],
+      dhairya: [300, 750],
+      kamal: [200, 200],
+      reception: [350, 480],
+      fees: [350, 540],
+      director: [350, 600],
+      admission: [350, 660],
+      block1: [680, 480],
+      block2: [680, 660],
+      block3: [680, 840],
+      idealab: [700, 660],
+      server: [670, 660],
+      cdc: [660, 840],
+      admin: [350, 570]
+    };
+
+    function addBuildingLabel(coords, labelText) {
+      return L.marker(coords, {
+        icon: L.divIcon({
+          className: 'map-building-label',
+          html: labelText,
+          iconAnchor: [35, 10]
+        }),
+        interactive: false
+      }).addTo(map);
+    }
+
+    let customLocations = JSON.parse(localStorage.getItem('aitr_custom_locations') || '[]');
+
+    // --- STREAMING_CHUNK:Drawing modern vector buildings, lawns, roads, and sports grounds... ---
+    // 1. AIMSR Zone (Non-engineering)
+    L.rectangle([[50, 50], [280, 380]], {
+      color: '#475569', fillColor: '#1e293b', fillOpacity: 0.7, weight: 2, dashArray: '6,6'
+    }).addTo(map).bindPopup("<b>AIMSR Zone</b><br>B.Sc, BBA & Pharmacy Depts");
+    addBuildingLabel([165, 215], "AIMSR Zone");
+
+    // Kamal Prabha Audi
+    L.rectangle([[150, 120], [240, 280]], {
+      color: '#3b82f6', fillColor: '#1d4ed8', fillOpacity: 0.85, weight: 2
+    }).addTo(map).bindPopup("<b>Kamal Prabha Audi</b><br>Main Campus Auditorium");
+    addBuildingLabel([195, 200], "Kamal Audi");
+
+    // 2. AITR Engineering Campus Lawn Ground
+    L.polygon([[280, 50], [280, 950], [950, 950], [950, 50]], {
+      color: '#15803d', fillColor: '#064e3b', fillOpacity: 0.45, weight: 2
+    }).addTo(map);
+
+    // Modern Asphalt Roadways
+    L.polyline([[100, 500], [530, 500]], { color: '#334155', weight: 24 }).addTo(map);
+    L.polyline([[530, 500], [530, 900]], { color: '#334155', weight: 20 }).addTo(map);
+    L.polyline([[530, 500], [530, 200]], { color: '#334155', weight: 18 }).addTo(map);
+    L.polyline([[530, 660], [880, 660]], { color: '#475569', weight: 14 }).addTo(map);
+
+    // Central Canteen
+    L.rectangle([[400, 260], [500, 360]], { color: '#ea580c', fillColor: '#c2410c', fillOpacity: 0.9, weight: 2 })
+      .addTo(map).bindPopup("<b>Central Canteen</b><br>Food & Snacks");
+    addBuildingLabel([450, 310], "Canteen");
+
+    // Sports Complex
+    L.rectangle([[400, 100], [500, 220]], { color: '#16a34a', fillColor: '#15803d', fillOpacity: 0.9, weight: 2 })
+      .addTo(map).bindPopup("<b>Sports Complex</b><br>Ground & Games");
+    addBuildingLabel([450, 160], "Sports Complex");
+
+    // Dhairya Prabha Audi / MBA Block
+    L.rectangle([[250, 700], [350, 850]], { color: '#9333ea', fillColor: '#7e22ce', fillOpacity: 0.85, weight: 2 })
+      .addTo(map).bindPopup("<b>MBA Building</b><br>Dhairya Prabha Audi");
+    addBuildingLabel([300, 775], "Dhairya Audi");
+
+    // Stationery Shop
+    L.rectangle([[570, 810], [630, 890]], { color: '#d97706', fillColor: '#b45309', fillOpacity: 0.9, weight: 2 })
+      .addTo(map).bindPopup("<b>Stationery Shop</b><br>Books & Copies");
+    addBuildingLabel([600, 850], "Stationery");
+
+    // Admin Wing
+    L.rectangle([[320, 440], [380, 700]], { color: '#0284c7', fillColor: '#0369a1', fillOpacity: 0.85, weight: 2 })
+      .addTo(map).bindPopup("<b>Admin Wing</b><br>Reception | Fees | Director");
+    addBuildingLabel([350, 570], "Admin Wing");
+
+    // Gate Badge
+    addBuildingLabel([100, 500], "Main Gate Entrance");
+
+    function renderFloor(floor) {
+      activeFloorLayers.forEach(layer => map.removeLayer(layer));
+      activeFloorLayers = [];
+
+      const b1Style = { color: '#3b82f6', fillColor: '#1d4ed8', fillOpacity: 0.85, weight: 2 };
+      const b2Style = { color: '#22c55e', fillColor: '#15803d', fillOpacity: 0.85, weight: 2 };
+      const b3Style = { color: '#f59e0b', fillColor: '#b45309', fillOpacity: 0.85, weight: 2 };
+
+      const block1 = L.rectangle([[650, 420], [800, 540]], b1Style);
+      const block2 = L.rectangle([[650, 600], [800, 720]], b2Style);
+      const block3 = L.rectangle([[650, 780], [800, 900]], b3Style);
+
+      let b1Text = "", b2Text = "", b3Text = "";
+
+      if (floor === 'G') {
+        b1Text = "<b>Block 1 - Floor G</b><br>Civil Dept | Washrooms";
+        b2Text = "<b>Block 2 - Floor G</b><br>Classrooms | Washrooms";
+        b3Text = "<b>Block 3 - Floor G</b><br>CDC Cell | Washrooms";
+      } else if (floor === '1') {
+        b1Text = "<b>Block 1 - Floor 1</b><br>Civil Dept | Central Library";
+        b2Text = "<b>Block 2 - Floor 1</b><br>IDEA Lab | Server Room";
+        b3Text = "<b>Block 3 - Floor 1</b><br>CS Dept | Washrooms";
+      } else if (floor === '2') {
+        b1Text = "<b>Block 1 - Floor 2</b><br>1st Year Classes";
+        b2Text = "<b>Block 2 - Floor 2</b><br>EC Dept | Washrooms";
+        b3Text = "<b>Block 3 - Floor 2</b><br>IT Dept | Washrooms";
+      } else if (floor === '3') {
+        b1Text = "<b>Block 1 - Floor 3</b><br>1st Year Classes | Acro Care";
+        b2Text = "<b>Block 2 - Floor 3</b><br>AIML Dept | Washrooms";
+        b3Text = "<b>Block 3 - Floor 3</b><br>CSIT Dept | Washrooms";
+      }
+
+      block1.bindPopup(b1Text);
+      block2.bindPopup(b2Text);
+      block3.bindPopup(b3Text);
+
+      const l1 = addBuildingLabel([725, 480], `Block 1 (F-${floor})`);
+      const l2 = addBuildingLabel([725, 660], `Block 2 (F-${floor})`);
+      const l3 = addBuildingLabel([725, 840], `Block 3 (F-${floor})`);
+
+      activeFloorLayers.push(block1, block2, block3, l1, l2, l3);
+
+      // Render custom pins for active floor
+      customLocations.forEach(loc => {
+        if (loc.floor === floor) {
+          let badgeBg = "bg-blue-600";
+          let iconClass = "fa-chalkboard-user";
+
+          if (loc.category === 'faculty') { badgeBg = "bg-purple-600"; iconClass = "fa-user-tie"; }
+          if (loc.category === 'lab') { badgeBg = "bg-emerald-600"; iconClass = "fa-flask"; }
+          if (loc.category === 'hod') { badgeBg = "bg-amber-600"; iconClass = "fa-building-user"; }
+
+          const customMarker = L.marker(loc.coords, {
+            icon: L.divIcon({
+              className: 'custom-loc-pin',
+              html: `<div class="${badgeBg} text-white text-[10px] font-bold px-2.5 py-1 rounded-full shadow-lg border border-white/40 flex items-center gap-1 whitespace-nowrap">
+                       <i class="fa-solid ${iconClass}"></i> ${loc.name}
+                     </div>`,
+              iconAnchor: [30, 10]
+            })
+          }).bindPopup(`<b>${loc.name}</b><br>Category: ${loc.category.toUpperCase()}<br>Dept: ${loc.dept}<br>Floor: ${loc.floor}`);
+          activeFloorLayers.push(customMarker);
+        }
+      });
+
+      activeFloorLayers.forEach(l => l.addTo(map));
+    }
+
+    renderFloor('G');
+
+    function switchFloor(floor) {
+      activeFloor = floor;
+      renderFloor(floor);
+
+      document.querySelectorAll('.floor-pill').forEach(btn => btn.classList.remove('active-floor'));
+      event.target.classList.add('active-floor');
+    }
+
+    let userCoords = [100, 500];
+    let userHeadingAngle = 0;
+
+    const arrowIcon = L.divIcon({
+      className: 'custom-arrow-container',
+      html: `<div id="arrowPulse" class="user-arrow-pulse"></div>
+             <div id="arrowWrapper" class="user-arrow-wrapper">
+               <div class="user-arrow-icon">
+                 <i class="fa-solid fa-location-arrow"></i>
+               </div>
+             </div>`,
+      iconSize: [54, 54],
+      iconAnchor: [27, 27]
+    });
+
+    let userMarker = L.marker(userCoords, { icon: arrowIcon }).addTo(map).bindPopup("<b>Your Position</b>");
+
+    function updateHeadingAndPosition(newCoords) {
+      const dy = newCoords[0] - userCoords[0];
+      const dx = newCoords[1] - userCoords[1];
+
+      if (dx !== 0 || dy !== 0) {
+        let angle = Math.atan2(dx, dy) * (180 / Math.PI);
+        if (angle < 0) angle += 360;
+        userHeadingAngle = Math.round(angle);
+
+        const el = document.getElementById('arrowWrapper');
+        if (el) {
+          el.style.transform = `rotate(${userHeadingAngle}deg)`;
+        }
+        document.getElementById('headingDeg').innerText = `${userHeadingAngle}°`;
+      }
+
+      userCoords = newCoords;
+      userMarker.setLatLng(userCoords);
+    }
+
+    let stepCount = 0;
+    function moveUser(dx, dy) {
+      const nextPos = [userCoords[0] + dx, userCoords[1] + dy];
+      updateHeadingAndPosition(nextPos);
+
+      stepCount++;
+      document.getElementById('stepCount').innerText = stepCount;
+      document.getElementById('distCount').innerText = (stepCount * 0.7).toFixed(1) + " m";
+    }
+
+    window.addEventListener('keydown', (e) => {
+      const step = 12;
+      if (e.key === 'ArrowUp') moveUser(step, 0);
+      if (e.key === 'ArrowDown') moveUser(-step, 0);
+      if (e.key === 'ArrowLeft') moveUser(0, -step);
+      if (e.key === 'ArrowRight') moveUser(0, step);
+    });
+
+    function speakText(text) {
+      if (isVoiceMuted || !('speechSynthesis' in window)) return;
+      window.speechSynthesis.cancel();
+
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'en-US';
+      utterance.rate = 1.0;
+      window.speechSynthesis.speak(utterance);
+    }
+
+    function toggleVoiceMute() {
+      isVoiceMuted = !isVoiceMuted;
+      const iconM = document.getElementById('voiceIconMobile');
+      const iconD = document.getElementById('voiceIconDesktop');
+
+      if (isVoiceMuted) {
+        if(iconM) iconM.className = "fa-solid fa-volume-xmark text-rose-400";
+        if(iconD) iconD.className = "fa-solid fa-volume-xmark text-rose-400";
+        window.speechSynthesis.cancel();
+      } else {
+        if(iconM) iconM.className = "fa-solid fa-volume-high text-blue-400";
+        if(iconD) iconD.className = "fa-solid fa-volume-high text-blue-400";
+        speakText("Voice navigation active.");
+      }
+    }
+
+    function findPath() {
+      const destKey = document.getElementById('destSelect').value;
+      if (!destKey) {
+        alert("Please select a destination from the top search bar first!");
+        return;
+      }
+
+      let dest = locations[destKey];
+      let destName = "";
+
+      if (!dest) {
+        const foundLoc = customLocations.find(c => c.id === destKey);
+        if (foundLoc) {
+          dest = foundLoc.coords;
+          destName = `${foundLoc.name} (${foundLoc.dept})`;
+          switchFloor(foundLoc.floor);
+        }
+      } else {
+        const selObj = document.getElementById('destSelect');
+        destName = selObj.options[selObj.selectedIndex].text;
+      }
+
+      if (!dest) return;
+
+      const startKey = document.getElementById('startSelect').value;
+      const start = (startKey !== 'gate' && locations[startKey]) ? locations[startKey] : userCoords;
+
+      if (routeLine) map.removeLayer(routeLine);
+      if (destMarker) map.removeLayer(destMarker);
+
+      const roadY = 530;
+      const pathWay = [start, [roadY, start[1]], [roadY, dest[1]], dest];
+
+      // Polyline with directional pulse dash
+      routeLine = L.polyline(pathWay, { color: '#60a5fa', weight: 6, dashArray: '10, 10' }).addTo(map);
+
+      destMarker = L.marker(dest, {
+        icon: L.divIcon({
+          className: 'dest-pin-wrapper',
+          html: `<i class="fa-solid fa-location-dot dest-pin-icon"></i>`,
+          iconAnchor: [16, 32]
+        })
+      }).addTo(map).bindPopup(`<b>Destination: ${destName}</b>`).openPopup();
+
+      map.flyTo(dest, 1, { duration: 1.2 });
+
+      const voiceBox = document.getElementById('voiceBox');
+      voiceBox.classList.remove('hidden');
+
+      const instruction = `Navigating to ${destName}. Follow the highlighted corridor line.`;
+      document.getElementById('navVoiceText').innerText = instruction;
+      document.getElementById('navSubText').innerText = `Destination: ${destName}`;
+
+      speakText(instruction);
+    }
+
+    function closeVoiceBox() {
+      document.getElementById('voiceBox').classList.add('hidden');
+      window.speechSynthesis.cancel();
+    }
+
+    function populateDropdowns() {
+      const classGrp = document.getElementById('classOptGroup');
+      const facultyGrp = document.getElementById('facultyOptGroup');
+      const labsGrp = document.getElementById('labsOptGroup');
+      const hodGrp = document.getElementById('hodOptGroup');
+
+      classGrp.innerHTML = '';
+      facultyGrp.innerHTML = '';
+      labsGrp.innerHTML = '';
+      hodGrp.innerHTML = '';
+
+      customLocations.forEach(loc => {
+        const opt = document.createElement('option');
+        opt.value = loc.id;
+        opt.innerText = `${loc.name} - ${loc.dept} (Floor ${loc.floor})`;
+
+        if (loc.category === 'class') classGrp.appendChild(opt);
+        else if (loc.category === 'faculty') facultyGrp.appendChild(opt);
+        else if (loc.category === 'lab') labsGrp.appendChild(opt);
+        else if (loc.category === 'hod') hodGrp.appendChild(opt);
+      });
+    }
+
+    populateDropdowns();
+
+    function openCategoryModal() {
+      document.getElementById('categoryModal').classList.remove('hidden');
+    }
+
+    function closeCategoryModal() {
+      document.getElementById('categoryModal').classList.add('hidden');
+    }
+
+    function selectCategory(cat) {
+      closeCategoryModal();
+      document.getElementById('locCategory').value = cat;
+
+      const title = document.getElementById('locationModalTitle');
+      const icon = document.getElementById('locationModalIcon');
+      const label = document.getElementById('locNameLabel');
+
+      if (cat === 'class') {
+        title.innerText = "Add Class / Classroom";
+        icon.className = "fa-solid fa-chalkboard-user text-blue-400";
+        label.innerText = "Classroom Name / Room No.";
+      } else if (cat === 'faculty') {
+        title.innerText = "Add Faculty Cabin";
+        icon.className = "fa-solid fa-user-tie text-purple-400";
+        label.innerText = "Faculty Name & Cabin";
+      } else if (cat === 'lab') {
+        title.innerText = "Add Lab";
+        icon.className = "fa-solid fa-flask text-emerald-400";
+        label.innerText = "Lab Name / Room";
+      } else if (cat === 'hod') {
+        title.innerText = "Add HOD Office";
+        icon.className = "fa-solid fa-building-user text-amber-400";
+        label.innerText = "HOD Office Name";
+      }
+
+      document.getElementById('locationModal').classList.remove('hidden');
+    }
+
+    function closeLocationModal() {
+      document.getElementById('locationModal').classList.add('hidden');
+      pickingLocationMode = false;
+    }
+
+    function enablePickMode() {
+      pickingLocationMode = true;
+      closeLocationModal();
+      alert("Click anywhere on the map to set the location pin.");
+    }
+
+    map.on('click', (e) => {
+      if (pickingLocationMode) {
+        const lat = Math.round(e.latlng.lat);
+        const lng = Math.round(e.latlng.lng);
+        document.getElementById('locCoords').value = `${lat}, ${lng}`;
+        pickingLocationMode = false;
+        document.getElementById('locationModal').classList.remove('hidden');
+      }
+    });
+
+    function saveCustomLocation(event) {
+      event.preventDefault();
+
+      const category = document.getElementById('locCategory').value;
+      const name = document.getElementById('locName').value;
+      const dept = document.getElementById('locDept').value;
+      const block = document.getElementById('locBlock').value;
+      const floor = document.getElementById('locFloor').value;
+      const coordsVal = document.getElementById('locCoords').value;
+
+      let coords = locations[block] || [700, 660];
+      if (coordsVal) {
+        const parts = coordsVal.split(',').map(n => parseInt(n.trim()));
+        if (parts.length === 2 && !isNaN(parts[0])) coords = parts;
+      }
+
+      const newLoc = {
+        id: 'loc_' + Date.now(),
+        category,
+        name,
+        dept,
+        block,
+        floor,
+        coords
+      };
+
+      customLocations.push(newLoc);
+      localStorage.setItem('aitr_custom_locations', JSON.stringify(customLocations));
+
+      populateDropdowns();
+      renderFloor(activeFloor);
+      closeLocationModal();
+
+      document.getElementById('locationForm').reset();
+      alert(`Location (${name}) added successfully!`);
+    }
+
+    let isPDRActive = false;
+    let lastAcc = { x: 0, y: 0, z: 0 };
+
+    function togglePDR() {
+      if (!isPDRActive) {
+        if (window.DeviceMotionEvent) {
+          window.addEventListener('devicemotion', handleMotion);
+          isPDRActive = true;
+          document.getElementById('pdrBtn').innerText = "Stop PDR";
+          document.getElementById('pdrBtn').className = "px-2.5 py-1 bg-rose-600 text-white rounded-lg text-xs font-bold transition flex items-center gap-1";
+          speakText("PDR Motion tracking active.");
+        } else {
+          alert("Device Motion Sensor not supported. Use keyboard arrow keys.");
+        }
+      } else {
+        window.removeEventListener('devicemotion', handleMotion);
+        isPDRActive = false;
+        document.getElementById('pdrBtn').innerText = "PDR";
+        document.getElementById('pdrBtn').className = "px-2.5 py-1 bg-emerald-600/80 hover:bg-emerald-600 text-white rounded-lg text-xs font-bold transition flex items-center gap-1";
+      }
+    }
+
+    function handleMotion(e) {
+      const acc = e.accelerationIncludingGravity;
+      if (!acc) return;
+      const delta = Math.abs(acc.x - lastAcc.x) + Math.abs(acc.y - lastAcc.y) + Math.abs(acc.z - lastAcc.z);
+      if (delta > 11) moveUser(8, 0);
+      lastAcc = { x: acc.x, y: acc.y, z: acc.z };
+    }
+
+    function resetMap() {
+      if (routeLine) map.removeLayer(routeLine);
+      if (destMarker) map.removeLayer(destMarker);
+      closeVoiceBox();
+      map.fitBounds(bounds);
+    }
+  </script>
+</body>
+</html>
